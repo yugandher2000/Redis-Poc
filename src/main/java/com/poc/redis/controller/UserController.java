@@ -1,10 +1,14 @@
 package com.poc.redis.controller;
 
 import com.poc.redis.model.User;
+import com.poc.redis.service.RedisService;
 import com.poc.redis.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.boot.actuate.health.Health;
 
 import java.util.List;
 
@@ -13,6 +17,10 @@ import java.util.List;
 public class UserController {
     @Autowired
     private UserService userService;
+    @Autowired
+    RedisService redisService;
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     @GetMapping
     public ResponseEntity<List<User>> getAllUsers() {
@@ -53,5 +61,21 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+    @GetMapping(value = "/redis", produces = {MediaType.APPLICATION_JSON_VALUE})
+    public Health redisCheck() throws Exception {
+        return redisService.health();
+    }
+    @GetMapping("/cache/{key}")
+    public Object getCacheValue(@PathVariable String key) {
+        return redisTemplate.opsForValue().get(key);
+    }
+    @DeleteMapping("/deleteCache")
+    public void deleteAllCache() {
+        redisTemplate.getConnectionFactory().getConnection().flushAll();
+    }
+    @GetMapping(value = "/getKeys")
+    public Object getAllKeys() {
+        return redisTemplate.keys("*");
     }
 }
