@@ -20,6 +20,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.JdkSerializationRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import java.time.Duration;
+
 @Configuration
 @Slf4j
 @EnableCaching
@@ -55,8 +57,11 @@ public class RedisConfig {
     public RedisCacheManager masterCacheManager(@Qualifier("redisTemplate") RedisTemplate<String, Object> redisTemplate){
         log.info("using {} as a connection factory for cache manager", redisTemplate.getConnectionFactory());
         RedisCacheWriter cacheWriter = RedisCacheWriter.nonLockingRedisCacheWriter(redisTemplate.getConnectionFactory());
+        // Set the default cache configuration with TTL from application.yml
+        RedisCacheConfiguration cacheConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(10));
         return RedisCacheManager.builder(cacheWriter)
-                .cacheDefaults(RedisCacheConfiguration.defaultCacheConfig())
+                .cacheDefaults(cacheConfig)
                 .build();
     }
 

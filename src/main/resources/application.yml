@@ -17,7 +17,12 @@ spring:
 
   cache:
     type: redis
+    redis:
+      key-prefix: "redisPoc:"
+      use-key-prefix: true
 
-  redis:
-    host: localhost
-    port: 6379
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      ttl: 60s
