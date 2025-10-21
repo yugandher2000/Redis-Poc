@@ -63,6 +63,7 @@ public class RedisConfig {
         return redisTemplate;
     }
 
+    @Primary
     @Bean(name = "masterConnectionFactory") //SENTINEL connection factory for MASTER writes
     public LettuceConnectionFactory connectionFactory(){
         if (applicationProperties.getRedis().getSentinel().isEnabled()) {
@@ -116,7 +117,7 @@ public class RedisConfig {
     }
 
     @Primary
-    @Bean
+    @Bean(name = "cacheManager")
     public CacheManager cacheManager(@Qualifier("masterCacheManager") RedisCacheManager masterCacheManager,
                                    @Qualifier("replicaCacheManager") RedisCacheManager replicaCacheManager){
         return new FallbackRedisCacheManager(masterCacheManager, replicaCacheManager);
