@@ -31,7 +31,7 @@ spring:
       
       # Sentinel configuration
       sentinel:
-        enabled: false  # Temporarily disabled until Sentinels are working
+        enabled: true  # Sentinels are now working!
         master: mymaster
         password: # optional sentinel password
         database: 0
