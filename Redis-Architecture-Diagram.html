@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Redis Sentinel Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333; 
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .mermaid {
+            text-align: center;
+        }
+        .explanation {
+            margin-top: 30px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Redis Sentinel Architecture</h1>
+        
+        <div class="mermaid">
+graph TB
+    subgraph "Spring Boot Application"
+        subgraph "Configuration Layer"
+            APP[ApplicationProperties]
+            CONFIG[RedisConfig]
+            YML[application.yml]
+        end
+        
+        subgraph "Service Layer"
+            CTRL[UserController]
+            SVC[UserService]
+            REDIS_SVC[RedisService]
+            REPO[UserRepository]
+        end
+        
+        subgraph "Redis Infrastructure"
+            subgraph "Connection Factories"
+                MCF[masterConnectionFactory<br/>ReadFrom.MASTER]
+                RCF[replicaConnectionFactory<br/>ReadFrom.REPLICA_PREFERRED]
+            end
+            
+            subgraph "Redis Templates"
+                MT[masterRedisTemplate<br/>Writes + Transactions]
+                RT[replicaRedisTemplate<br/>Reads Only]
+            end
+            
+            subgraph "Cache Managers"
+                MCM[masterCacheManager<br/>Write Operations]
+                RCM[replicaCacheManager<br/>Read Operations]
+                FCM[FallbackRedisCacheManager<br/>Primary Cache Manager]
+            end
+        end
+    end
+    
+    subgraph "Redis Sentinel Cluster"
+        subgraph "Sentinel Nodes"
+            S1[Sentinel 1<br/>localhost:26379]
+            S2[Sentinel 2<br/>localhost:26380]
+            S3[Sentinel 3<br/>localhost:26381]
+        end
+        
+        subgraph "Redis Nodes"
+            RM[Redis Master<br/>mymaster<br/>localhost:6379]
+            RR[Redis Replica<br/>localhost:6380]
+        end
+    end
+    
+    %% Configuration relationships
+    YML --> APP
+    APP --> CONFIG
+    CONFIG --> MCF
+    CONFIG --> RCF
+    
+    %% Template relationships
+    MCF --> MT
+    RCF --> RT
+    
+    %% Cache manager relationships
+    MT --> MCM
+    RT --> RCM
+    MCM --> FCM
+    
+    %% Service relationships
+    CTRL --> SVC
+    SVC --> REPO
+    SVC --> REDIS_SVC
+    REDIS_SVC --> MT
+    REDIS_SVC --> RT
+    
+    %% Sentinel connections
+    MCF -.->|"Discovers & Connects"| S1
+    MCF -.->|"Discovers & Connects"| S2
+    MCF -.->|"Discovers & Connects"| S3
+    
+    RCF -.->|"Discovers & Connects"| S1
+    RCF -.->|"Discovers & Connects"| S2
+    RCF -.->|"Discovers & Connects"| S3
+    
+    %% Sentinel monitoring
+    S1 -.->|"Monitors"| RM
+    S1 -.->|"Monitors"| RR
+    S2 -.->|"Monitors"| RM
+    S2 -.->|"Monitors"| RR
+    S3 -.->|"Monitors"| RM
+    S3 -.->|"Monitors"| RR
+    
+    %% Redis replication
+    RM -->|"Replicates to"| RR
+    
+    %% Application connections
+    MT -.->|"Writes"| RM
+    RT -.->|"Reads (Preferred)"| RR
+    RT -.->|"Reads (Fallback)"| RM
+    
+    %% Styling
+    classDef configClass fill:#e1f5fe
+    classDef serviceClass fill:#f3e5f5
+    classDef redisInfra fill:#fff3e0
+    classDef sentinelClass fill:#e8f5e8
+    classDef redisNode fill:#ffebee
+    
+    class APP,CONFIG,YML configClass
+    class CTRL,SVC,REDIS_SVC,REPO serviceClass
+    class MCF,RCF,MT,RT,MCM,RCM,FCM redisInfra
+    class S1,S2,S3 sentinelClass
+    class RM,RR redisNode
+        </div>
+
+        <div class="explanation">
+            <h3>🎯 Key Features:</h3>
+            <ul>
+                <li><strong>Automatic Failover:</strong> When master fails, replica becomes master</li>
+                <li><strong>Read Scaling:</strong> Reads from replica, writes to master</li>
+                <li><strong>Zero Downtime:</strong> Lettuce client handles reconnection automatically</li>
+                <li><strong>High Availability:</strong> 3 sentinels ensure consensus</li>
+                <li><strong>Monitoring:</strong> Built-in health checks for all nodes</li>
+            </ul>
+            
+            <h3>🔄 Failover Process:</h3>
+            <p>Master Fails → Sentinels Vote → Promote Replica → App Reconnects → Zero Downtime</p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
+        });
+    </script>
+</body>
+</html>
