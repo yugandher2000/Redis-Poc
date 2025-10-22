@@ -154,7 +154,9 @@ public class RedisConfig {
                 .readFrom(readFrom)
                 .clientOptions(ClientOptions.builder()
                         .autoReconnect(true)
+                        .disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS)
                         .build())
+                .commandTimeout(Duration.ofSeconds(5))
                 .build();
         
         log.info("Sentinel Configuration - Master: {}, ReadFrom: {}", 
