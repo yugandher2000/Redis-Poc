@@ -3,90 +3,118 @@ package com.poc.redis.service;
 import io.lettuce.core.RedisConnectionException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+/**
+ * Redis Service using single RedisTemplate
+ * The single template automatically routes:
+ * - Reads to replicas (when available) or master (as fallback)
+ * - Writes to master
+ */
 @Service
 @Slf4j
 public class RedisService {
     
     @Autowired
-    @Qualifier("masterConnectionFactory")
-    LettuceConnectionFactory masterConnectionFactory;
+    private RedisTemplate<String, Object> redisTemplate;
     
     @Autowired
-    @Qualifier("replicaConnectionFactory")
-    LettuceConnectionFactory replicaConnectionFactory;
+    private LettuceConnectionFactory redisConnectionFactory;
     
-    @Autowired
-    @Qualifier("redisTemplate")
-    RedisTemplate<String, Object> masterTemplate;
-    
-    @Autowired
-    @Qualifier("replicaRedisTemplate")
-    RedisTemplate<String, Object> replicaTemplate;
-    
-    // Write operations - use master
+    /**
+     * Write operations - automatically routed to master
+     */
     public void setValue(String key, Object value) {
-        log.info("Writing to master: {} = {}", key, value);
-        masterTemplate.opsForValue().set(key, value);
+        log.info("Setting value: {} = {}", key, value);
+        redisTemplate.opsForValue().set(key, value);
+        log.info("Value set successfully to master");
     }
 
-    // Read operations - use replica (with fallback to master)
+    /**
+     * Read operations - automatically prefer replica, fallback to master
+     */
     public Object getValue(String key) {
-        try {
-            log.info("Reading from replica: {}", key);
-            return replicaTemplate.opsForValue().get(key);
-        } catch (Exception e) {
-            log.warn("Failed to read from replica, falling back to master: {}", e.getMessage());
-            return masterTemplate.opsForValue().get(key);
-        }
+        log.info("Getting value for key: {}", key);
+        Object value = redisTemplate.opsForValue().get(key);
+        log.info("Retrieved value: {} = {}", key, value);
+        return value;
     }
 
-    // Delete operations - use master
+    /**
+     * Delete operations - automatically routed to master
+     */
     public Boolean deleteKey(String key) {
-        log.info("Deleting from master: {}", key);
-        return masterTemplate.delete(key);
+        log.info("Deleting key: {}", key);
+        Boolean result = redisTemplate.delete(key);
+        log.info("Delete operation result for {}: {}", key, result);
+        return result;
     }
 
-    // Check if key exists - use replica
+    /**
+     * Check if key exists - can be read from replica
+     */
     public Boolean hasKey(String key) {
+        log.info("Checking if key exists: {}", key);
+        Boolean exists = redisTemplate.hasKey(key);
+        log.info("Key {} exists: {}", key, exists);
+        return exists;
+    }
+
+    /**
+     * Set with expiration - routed to master
+     */
+    public void setValueWithTTL(String key, Object value, long seconds) {
+        log.info("Setting value with TTL: {} = {} (expires in {} seconds)", key, value, seconds);
+        redisTemplate.opsForValue().set(key, value, java.time.Duration.ofSeconds(seconds));
+        log.info("Value with TTL set successfully");
+    }
+
+    /**
+     * Increment operation - routed to master
+     */
+    public Long increment(String key) {
+        log.info("Incrementing key: {}", key);
+        Long result = redisTemplate.opsForValue().increment(key);
+        log.info("Increment result for {}: {}", key, result);
+        return result;
+    }
+
+    /**
+     * Health check for Redis connection
+     */
+    public Health checkRedisHealth() {
         try {
-            log.info("Checking key existence on replica: {}", key);
-            return replicaTemplate.hasKey(key);
+            // Simple ping test
+            redisTemplate.opsForValue().get("health-check");
+            log.info("Redis health check passed");
+            return Health.up()
+                    .withDetail("status", "Connected")
+                    .withDetail("connectionFactory", redisConnectionFactory.getClass().getSimpleName())
+                    .build();
+        } catch (RedisConnectionException e) {
+            log.error("Redis health check failed: {}", e.getMessage());
+            return Health.down()
+                    .withDetail("status", "Connection failed")
+                    .withDetail("error", e.getMessage())
+                    .build();
         } catch (Exception e) {
-            log.warn("Failed to check key on replica, falling back to master: {}", e.getMessage());
-            return masterTemplate.hasKey(key);
+            log.error("Redis health check error: {}", e.getMessage());
+            return Health.down()
+                    .withDetail("status", "Error")
+                    .withDetail("error", e.getMessage())
+                    .build();
         }
     }
-    
-    public Health health() {
-        try {
-            log.info("Health Check - Redis MASTER healthCheck. Connection: {}", masterConnectionFactory.getConnection().ping());
-            
-            // Also check replica health
-            try {
-                log.info("Health Check - Redis REPLICA healthCheck. Connection: {}", replicaConnectionFactory.getConnection().ping());
-                return Health.up()
-                    .withDetail("master", "UP")
-                    .withDetail("replica", "UP")
-                    .withDetail("message", "Redis Sentinel cluster is up and running")
-                    .build();
-            } catch (Exception replicaException) {
-                return Health.up()
-                    .withDetail("master", "UP")
-                    .withDetail("replica", "DOWN")
-                    .withDetail("message", "Redis master is up, replica has issues")
-                    .build();
-            }
 
-        } catch (RedisConnectionException e) {
-            return Health.down().withException(e).withDetail("message", "Redis connection failed").build();
-        } catch (Exception e) {
-            return Health.down().withException(e).withDetail("message", "Redis health check failed").build();
-        }
+    /**
+     * Get connection info for debugging
+     */
+    public String getConnectionInfo() {
+        return String.format("Connection Factory: %s, Template: %s", 
+                redisConnectionFactory.getClass().getSimpleName(),
+                redisTemplate.getClass().getSimpleName());
     }
 }

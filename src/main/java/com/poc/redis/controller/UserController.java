@@ -18,7 +18,7 @@ public class UserController {
     @Autowired
     private UserService userService;
     @Autowired
-    RedisService redisService;
+    private RedisService redisService;
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
@@ -59,7 +59,7 @@ public class UserController {
     }
     @GetMapping(value = "/redis", produces = {MediaType.APPLICATION_JSON_VALUE})
     public Health redisCheck() throws Exception {
-        return redisService.health();
+        return redisService.checkRedisHealth();
     }
     @GetMapping("/cache/{key}")
     public Object getCacheValue(@PathVariable String key) {
@@ -72,5 +72,46 @@ public class UserController {
     @GetMapping(value = "/getKeys")
     public Object getAllKeys() {
         return redisTemplate.keys("*");
+    }
+
+    // Additional Redis operations using the simplified service
+    @PostMapping("/redis/set/{key}")
+    public ResponseEntity<String> setRedisValue(@PathVariable String key, @RequestBody Object value) {
+        try {
+            redisService.setValue(key, value);
+            return ResponseEntity.ok("Value set successfully for key: " + key);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/redis/get/{key}")
+    public ResponseEntity<Object> getRedisValue(@PathVariable String key) {
+        try {
+            Object value = redisService.getValue(key);
+            return value != null ? ResponseEntity.ok(value) : ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/redis/delete/{key}")
+    public ResponseEntity<String> deleteRedisKey(@PathVariable String key) {
+        try {
+            Boolean deleted = redisService.deleteKey(key);
+            return deleted ? ResponseEntity.ok("Key deleted: " + key) : ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/redis/info")
+    public ResponseEntity<String> getRedisInfo() {
+        try {
+            String info = redisService.getConnectionInfo();
+            return ResponseEntity.ok(info);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
     }
 }

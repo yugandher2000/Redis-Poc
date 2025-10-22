@@ -27,14 +27,14 @@ spring:
       host: localhost
       port: 6379
       password: # optional
-      ttl: 60s
+      ttl: 10m  # TTL in minutes (10 minutes = 600 seconds)
       
       # Sentinel configuration
       sentinel:
         enabled: true  # Sentinels are now working!
         master: mymaster
         password: # optional sentinel password
-        database: 0
+        database: 0 # ← This means our app will use Redis database #0
         enable-read-from-replica: true
         nodes:
           - localhost:26379
